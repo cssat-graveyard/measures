@@ -1,0 +1,81 @@
+---
+title: "General Rate of Intakes"
+author: "Joe Mienko"
+date: "March 12, 2015"
+output: html_document
+---
+
+## Formal Definition
+
+The general rate of intakes (i.e. reports of safety concerns) ($R_I$) shall be defined as the total number of household intakes received by Children's Administration (CA) per month, per 1,000 households with own children under the age of 18 as defined by the US Census. This measure will focus on \emph{all} categories of intakes to the child welfare system except intakes made to the division of licensed resources (DLR). This measure thus includes contacts to the child welfare system in which at least one child in a household is alleged to have been a victim of child maltreatment (i.e. child protective services (CPS) intakes), contacts in which no child maltreatment is indicated but at least one child in a household is identified at imminent risk of serious harm (i.e. risk-only intakes), contacts in which a parent contacts the child welfare system seeking placement of their child (i.e. child and family welfare services (CFWS) intakes), and contacts in which a caretaker contacts the child welfare system seeking assistance with one or more adolescent youth in a household (i.e. family reconciliation services (FRS)). When reported, the measure shall be disagragated by each category.
+
+$$
+R_I=\frac{I}{H} \cdot 1,000
+$$
+
+where $I$ represents the total number of referrals occurring during the month and $H$ the population of households with own children under the age of 18 as defined by the US Census. If more than one referral is received for a given household within a 48 hour period, those referrals will only be counted once. To the extent that estimates are available, values of $H$ shall be calculated from the following sources in order of priority:
+
+1. US Census for a given year,
+2. American Community Survey (ACS), 
+3. Office of Financial Management (OFM), and 
+4. Linear interpolation taking the above estimates as "True" values. 
+
+## Calculation Algorithm (Assuming the Existance of Relevant Reference Tables)
+
+1. Build [`tbl_intakes`](https://github.com/pocdata/sql_dev/blob/master/ca_ods_sp/base.prod_build_tbl_intakes.StoredProcedure.sql) from `rptIntakes_CA` to add relevant fields to the base table received from CA. 
+
+2. Define [`vw_referrals_grp`](https://github.com/pocdata/sql_dev/blob/master/ca_ods_views/prtl.vw_referrals_grp.View.sql) to group referrals according to logic specified in the linked code. 
+
+3. Build [`rate_referrals_ts`](https://github.com/pocdata/sql_dev/blob/master/ca_ods_sp/prtl.prod_build_rate_referrals.StoredProcedure.sql)
+
+4. Build [`R_dst_rate_referrals`](https://github.com/pocdata/annual_review/blob/master/bld_R_tables/bld.R.R_dst_rate_referrals.R) using the [`ts()`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/ts.html) function from R. This gets us our deseasonalized trend. 
+
+5. [UPDATE](https://github.com/pocdata/annual_review/blob/master/bld_R_tables/udt.R.R_dst_rate_referrals.sql) the `rate_referrals_ts` table. 
+
+6. Write [`sp_rate_referral_ts`]() on the web production database. The following code calls this procedure from `R`, and displays the first five rows of a result set. 
+
+The first parameter is `varchar` indicating specific date to be returned, the second parameter is `varchar` indicating the specific [`cd_region`]() to be returned, the final parameter indicates the specific [`entry_point`]() to be returned. 
+
+```{r}
+library(RODBC)
+
+library(knitr)
+
+con <- odbcConnect("Test Annie")
+
+dat <- sqlQuery(con, "CALL `test_annie`.`sp_rate_referral_ts`('0', '0', '0');")
+
+kable(head(dat), align = 'c')
+```
+
+The following code plots a sample graph using the `ggplot` package.
+
+```{r}
+source('theme_portal.R')
+
+library(ggplot2)
+
+library(reshape2)
+
+library(scales)
+
+dat_melt <- melt(dat, id.vars = "Date"
+                 ,measure.vars = c("Referral Rate", "Trend")
+)
+
+ggplot(dat, aes(y=`Referral Rate`, x=Date)) + 
+  geom_point() +
+  geom_line(aes(y=Trend)) + 
+  scale_x_date(labels = date_format("%b %y")) +
+  ylab("") +
+  xlab("") +
+  scale_y_continuous(limits=c(0, 12)) + 
+  ggtitle(bquote(atop("Rate of Referrals"
+                      ,atop("Per 1,000 Households with Children in Washington State")
+                      )
+                 )
+          ) + 
+  theme_portal()
+
+```
+
