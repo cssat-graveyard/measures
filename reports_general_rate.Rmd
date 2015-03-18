@@ -32,7 +32,35 @@ where $I$ represents the total number of referrals occurring during the month an
 
 5. [UPDATE](https://github.com/pocdata/annual_review/blob/master/bld_R_tables/udt.R.R_dst_rate_referrals.sql) the `rate_referrals_ts` table. 
 
-6. Write [`sp_rate_referral_ts`]() on the web production database. The following code calls this procedure from `R`, and displays the first five rows of a result set. 
+## Basic Join of Tables to Produce Result Set
+
+The following logic is implemented in [`sp_rate_referral_ts`]() on the web production database. 
+
+
+```sql
+SELECT 
+  CONVERT(RR.start_date, DATE) AS 'Date' 
+	,RR.old_region_cd
+	,LC.old_region AS 'Region'
+	,RR.entry_point AS 'cd_access_type'
+	,A.tx_access_type AS 'Access type desc'
+	,RR.referral_rate AS 'Referral Rate'
+	,RR.trend AS 'Trend'
+FROM rate_referrals_ts AS RR
+	LEFT JOIN ref_filter_access_type AS A
+		ON RR.entry_point = A.cd_access_type
+	JOIN ref_lookup_region AS LC
+		ON RR.old_region_cd = LC.old_region_cd
+WHERE RR.start_date >= '2009-07-01'
+	AND find_in_set(RR.old_region_cd, p_cd_region) > 0
+	AND find_in_set(RR.entry_point, p_entry_point) > 0
+order by
+	RR.old_region_cd
+	,RR.start_date asc
+	,RR.entry_point asc;
+```
+
+The following code calls this procedure from `R`, and displays the first five rows of a result set. 
 
 The first parameter is `varchar` indicating specific date to be returned, the second parameter is `varchar` indicating the specific [`cd_region`]() to be returned, the final parameter indicates the specific [`entry_point`]() to be returned. 
 
