@@ -5,4 +5,4 @@ output: html_document
 
 Put some introductory text here...
 
-[General Rate of Intake](/report_general_rate.html)
+[General Rate of Intake](https://cdn.rawgit.com/pocdata/measures/gh-pages/reports_general_rate.html)
